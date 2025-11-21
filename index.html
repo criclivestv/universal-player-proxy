@@ -1,1 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Network Player</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #0d0d0f; color: #f4f4f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { width: 90%; max-width: 650px; padding: 25px; background: #1a1a1f; border-radius: 12px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4); }
+        h1 { color: #8a2be2; text-align: center; margin-bottom: 25px; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #a9a9b2; }
+        input[type="text"], select { 
+            width: 100%; padding: 12px; margin-top: 5px; 
+            border: 1px solid #333; background-color: #222; 
+            color: #f4f4f9; border-radius: 6px; box-sizing: border-box;
+        }
+        button { 
+            background-color: #8a2be2; color: white; padding: 12px 20px; 
+            border: none; border-radius: 6px; cursor: pointer; 
+            margin-top: 25px; width: 100%; font-size: 18px; 
+            font-weight: bold;
+        }
+        .input-group { margin-bottom: 15px; }
+        .drm-group { display: flex; gap: 10px; }
+        .drm-group > div { flex: 1; }
+        .play-button {
+            position: fixed; right: 20px; bottom: 20px; 
+            width: 60px; height: 60px; border-radius: 50%;
+            background-color: #ff007f; color: white;
+            border: none; font-size: 24px; cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
+            display: flex; justify-content: center; align-items: center;
+        }
+        .play-button:hover { background-color: #cc0066; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Network Player</h1>
+        
+        <div class="input-group">
+            <label for="streamUrl">Stream URL</label>
+            <input type="text" id="streamUrl" placeholder="HLS/DASH manifest link (.mpd, .m3u8)" required>
+        </div>
+        
+        <div class="input-group">
+            <label for="cookie">Cookie</label>
+            <input type="text" id="cookie" placeholder="e.g., sessionid=xyz; auth=abc">
+        </div>
 
+        <div class="input-group">
+            <label for="referer">Referer</label>
+            <input type="text" id="referer" placeholder="e.g., https://authorized-domain.com">
+        </div>
+
+        <div class="input-group">
+            <label for="origin">Origin</label>
+            <input type="text" id="origin" placeholder="e.g., https://your-domain.com">
+        </div>
+
+        <div class="input-group">
+            <label for="drmLicense">DRM License</label>
+            <input type="text" id="drmLicense" placeholder="License Server URL (Widevine) or KeyId:KeyValue (ClearKey)">
+        </div>
+            
+        <div class="drm-group">
+            <div class="input-group">
+                <label for="userAgent">UserAgent</label>
+                <select id="userAgent">
+                    <option value="Default">Default</option>
+                    <option value="Chrome(Android)">Chrome (Android)</option>
+                    <option value="Chrome(PC)">Chrome (PC)</option>
+                    <option value="IE(PC)">IE (PC)</option>
+                    <option value="Firefox(PC)">Firefox (PC)</option>
+                    <option value="Iphone">Iphone</option>
+                    <option value="Nokia">Nokia</option>
+                    <option value="Custom">Custom</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label for="drmScheme">DrmScheme</label>
+                <select id="drmScheme">
+                    <option value="">Auto-Detect</option>
+                    <option value="ClearKey">ClearKey</option>
+                    <option value="Widevine">Widevine</option>
+                    <option value="PlayReady">PlayReady</option>
+                </select>
+            </div>
+        </div>
+        
+        <button class="play-button" onclick="loadPlayer()">▶️</button>
+    </div>
+
+    <script>
+        // UserAgent মানগুলি আপনার আপলোড করা ছবি অনুযায়ী তৈরি করা হলো
+        const userAgents = {
+            'Default': '', 
+            'Chrome(Android)': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36',
+            'Chrome(PC)': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'IE(PC)': 'Mozilla/5.0 (Windows NT 10.0; WOW64; Trident/7.0; rv:11.0) like Gecko',
+            'Firefox(PC)': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
+            'Iphone': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+            'Nokia': 'Nokia5700/ UCWEB7.0.2.37/28/999',
+        };
+
+        function loadPlayer() {
+            const url = document.getElementById('streamUrl').value.trim();
+            if (!url) {
+                alert('Stream URL আবশ্যক!');
+                return;
+            }
+
+            const params = new URLSearchParams();
+            params.set('url', url);
+
+            // সমস্ত ইনপুট ফিল্ড থেকে ডেটা সংগ্রহ করা
+            const inputs = ['cookie', 'referer', 'origin', 'drmScheme', 'drmLicense'];
+            inputs.forEach(id => {
+                const value = document.getElementById(id).value.trim();
+                if (value) params.set(id, value);
+            });
+            
+            // UserAgent নির্ধারণ
+            const userAgentKey = document.getElementById('userAgent').value;
+            let userAgentValue = userAgents[userAgentKey] || '';
+            
+            if (userAgentKey === 'Custom') {
+                userAgentValue = prompt('কাস্টম UserAgent মান দিন:');
+            }
+            if (userAgentValue) params.set('userAgent', userAgentValue);
+
+
+            // player.html-এ রিডাইরেক্ট করা
+            window.location.href = `player.html?${params.toString()}`;
+        }
+    </script>
+</body>
+  </html>
