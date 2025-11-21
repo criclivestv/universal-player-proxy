@@ -1,1 +1,12 @@
-
+{
+  "name": "universal-shaka-player",
+  "version": "1.0.0",
+  "description": "Shaka Player with Universal Proxy for Geo-unblocking and Header Management (Vercel Node.js).",
+  "main": "index.js",
+  "dependencies": {
+    "node-fetch": "^2.6.1"
+  },
+  "scripts": {
+    "start": "echo 'Vercel will handle the API and static files.'"
+  }
+}
