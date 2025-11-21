@@ -1,1 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynamic Universal Player</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.6/controls.min.css">
+<style>
+/* CSS for the player */
+body, html {
+  margin:0; padding:0; background:#000;
+  height:100%; width:100%;
+  display:flex; justify-content:center; align-items:center;
+}
+#player-container {
+  width:100%; max-width:1280px;
+  aspect-ratio:16/9; position:relative; background:#000;
+}
+video.shaka-video {
+  width:100%; height:100%; object-fit:contain; background:#000;
+}
+.shaka-controls-container {
+  z-index:9999!important; background:transparent!important;
+}
+.shaka-spinner-container {
+  display: none !important;
+}
+.back-button {
+    position: absolute; top: 10px; left: 10px; z-index: 10001;
+    background: rgba(0,0,0,0.6); color: white; border: none;
+    padding: 8px 12px; border-radius: 5px; cursor: pointer;
+}
+</style>
+</head>
+<body>
+<button class="back-button" onclick="history.back()">← Go Back</button>
 
+<div id="player-container">
+  <video id="video" autoplay muted playsinline class="shaka-video"></video>
+  <div class="shaka-controls-container"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.6/shaka-player.ui.min.js"></script>
+
+<script>
+// 🚨🚨 গুরুত্বপূর্ণ: Vercel/Netlify-এর জন্য প্রক্সি URL হবে /api/proxy
+const PROXY_BASE = '/api/proxy?url='; 
+// -------------------------------------------------------------
+
+document.addEventListener('DOMContentLoaded', async()=>{
+  const video = document.getElementById('video');
+  const container = document.getElementById('player-container');
+  
+  // Error Message setup
+  const errorMessage = document.createElement('div');
+  errorMessage.style.cssText = 'position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); color:red; background:rgba(0,0,0,0.8); padding:20px; z-index:10000; display:none; border-radius:5px; font-weight:bold;';
+  container.appendChild(errorMessage);
+
+  const player = new shaka.Player(video);
+  
+  // Error Listener
+  player.addEventListener('error', e=>{
+    const errorDetails = e.detail ? (e.detail.code ? `Shaka Error ${e.detail.code}` : e.detail.message) : 'Unknown Error';
+    console.error('Shaka error', e.detail||e);
+    errorMessage.textContent = `❌ ভিডিও লোড করতে পারেনি: ${errorDetails}`;
+    errorMessage.style.display = 'block';
+  });
+  
+  // Read URL params
+  const p = new URLSearchParams(window.location.search);
+  const urlParam = p.get('url');
+  
+  // Manual Inputs
+  const manualCookie = p.get('cookie');
+  const manualReferer = p.get('referer');
+  const manualOrigin = p.get('origin'); // Origin header
+  const manualUserAgent = p.get('userAgent');
+  const manualDrmScheme = p.get('drmScheme');
+  const manualDrmLicense = p.get('drmLicense');
+
+  if (!urlParam) {
+    errorMessage.textContent = '❌ কোনো ভিডিও লিংক দেওয়া হয়নি।';
+    errorMessage.style.display = 'block';
+    return;
+  }
+  
+  let streamUrl = urlParam;
+  let drmConfig = null;
+  let defaultHeaders = {};
+  let isDaiStream = streamUrl.includes('dai.google.com');
+
+  // --- ১. DRM কনফিগারেশন লজিক ---
+  if (!manualDrmScheme && !manualDrmLicense) {
+      // Auto-Detect ClearKey from URL
+      const parts = streamUrl.split('?|');
+      if (parts.length > 1) {
+        streamUrl = parts[0]; 
+        const paramsString = parts[1];
+        const streamParams = new URLSearchParams(paramsString.replace(/&/g, '&'));
+
+        const scheme = streamParams.get('drmScheme');
+        const licenseData = streamParams.get('drmLicense');
+
+        if (scheme && licenseData && scheme.toLowerCase() === 'clearkey') {
+          const [keyId, keyValue] = licenseData.split(':');
+          if (keyId && keyValue) {
+            drmConfig = { clearKeys: { [keyId]: keyValue } };
+          }
+        }
+      }
+  } else if (manualDrmScheme && manualDrmLicense) {
+      // Manual Configuration
+      const scheme = manualDrmScheme.toLowerCase();
+      const license = manualDrmLicense;
+
+      if (scheme === 'clearkey') {
+          const [keyId, keyValue] = license.split(':');
+          if (keyId && keyValue) {
+            drmConfig = { clearKeys: { [keyId]: keyValue } };
+          }
+      } else if (scheme === 'widevine' || scheme === 'playready') {
+          const serverKey = scheme === 'widevine' ? 'com.widevine.alpha' : 'com.microsoft.playready';
+          drmConfig = { servers: { [serverKey]: license } };
+      }
+  }
+
+  // --- ২. হেডার কনফিগারেশন ---
+  if (manualCookie) defaultHeaders['Cookie'] = manualCookie;
+  if (manualReferer) defaultHeaders['Referer'] = manualReferer;
+  if (manualOrigin) defaultHeaders['Origin'] = manualOrigin; 
+  if (manualUserAgent) defaultHeaders['User-Agent'] = manualUserAgent;
+
+  // Shaka UI Initialization 
+  const ui = new shaka.ui.Overlay(player, container, video);
+  ui.configure({
+    controlPanelElements: [
+      'play_pause','mute','volume','spacer',
+      'settings','quality','picture_in_picture','fullscreen'
+    ],
+    settingsMenuElements: ['quality','playback_rate']
+  });
+
+  player.configure({
+    abr: { enabled:true, defaultBandwidthEstimate:5000000, restriction:{minHeight:360,maxHeight:1080} },
+    streaming: { bufferingGoal: 30, rebufferingGoal: 5, bufferBehind:30, lowLatencyMode: false, autoSetVttCuesAsText: isDaiStream },
+    manifest: { xhr: { withCredentials: true } },
+    networking: { defaultRequestHeaders: defaultHeaders }
+  });
+
+  if (drmConfig) {
+      player.configure('drm', drmConfig);
+  } else {
+      player.configure('drm', null);
+  }
+
+  // --- ৩. প্রক্সি হ্যান্ডলার যুক্ত করা (Vercel) ---
+  player.getNetworkingEngine().registerRequestFilter(function(type, request) {
+    if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST || 
+        type === shaka.net.NetworkingEngine.RequestType.SEGMENT || 
+        type === shaka.net.NetworkingEngine.RequestType.LICENSE) {
+        
+        // সমস্ত রিকোয়েস্ট প্রক্সি সার্ভারের মাধ্যমে যাবে
+        request.uris[0] = PROXY_BASE + encodeURIComponent(request.uris[0]);
+    }
+  });
+
+  /**
+   * Loads the video.
+   */
+  async function loadVideo(){
+    errorMessage.style.display = 'none'; 
+    try{
+      await player.load(streamUrl);
+    } catch(err){
+      // Error handled by event listener
+    }
+  }
+  loadVideo();
+});
+</script>
+</body>
+</html>
