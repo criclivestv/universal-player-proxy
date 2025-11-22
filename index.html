@@ -92,7 +92,6 @@
     </div>
 
     <script>
-        // UserAgent মানগুলি আপনার আপলোড করা ছবি অনুযায়ী তৈরি করা হলো
         const userAgents = {
             'Default': '', 
             'Chrome(Android)': 'Mozilla/5.0 (Linux; Android 10; SM-G975F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.101 Mobile Safari/537.36',
@@ -113,14 +112,12 @@
             const params = new URLSearchParams();
             params.set('url', url);
 
-            // সমস্ত ইনপুট ফিল্ড থেকে ডেটা সংগ্রহ করা
             const inputs = ['cookie', 'referer', 'origin', 'drmScheme', 'drmLicense'];
             inputs.forEach(id => {
                 const value = document.getElementById(id).value.trim();
                 if (value) params.set(id, value);
             });
             
-            // UserAgent নির্ধারণ
             const userAgentKey = document.getElementById('userAgent').value;
             let userAgentValue = userAgents[userAgentKey] || '';
             
@@ -129,10 +126,8 @@
             }
             if (userAgentValue) params.set('userAgent', userAgentValue);
 
-
-            // player.html-এ রিডাইরেক্ট করা
             window.location.href = `player.html?${params.toString()}`;
         }
     </script>
 </body>
-  </html>
+                        </html>
