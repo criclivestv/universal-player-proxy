@@ -43,7 +43,7 @@ video.shaka-video {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/shaka-player/4.7.6/shaka-player.ui.min.js"></script>
 
 <script>
-// 🚨🚨 গুরুত্বপূর্ণ: Vercel/Netlify-এর জন্য প্রক্সি URL হবে /api/proxy
+// ✅ Vercel-এর জন্য প্রক্সি URL: /api/proxy (এটি একই ডোমেইনে কাজ করে)
 const PROXY_BASE = '/api/proxy?url='; 
 // -------------------------------------------------------------
 
@@ -70,10 +70,10 @@ document.addEventListener('DOMContentLoaded', async()=>{
   const p = new URLSearchParams(window.location.search);
   const urlParam = p.get('url');
   
-  // Manual Inputs
+  // Manual Inputs from index.html
   const manualCookie = p.get('cookie');
   const manualReferer = p.get('referer');
-  const manualOrigin = p.get('origin'); // Origin header
+  const manualOrigin = p.get('origin'); 
   const manualUserAgent = p.get('userAgent');
   const manualDrmScheme = p.get('drmScheme');
   const manualDrmLicense = p.get('drmLicense');
@@ -91,12 +91,11 @@ document.addEventListener('DOMContentLoaded', async()=>{
 
   // --- ১. DRM কনফিগারেশন লজিক ---
   if (!manualDrmScheme && !manualDrmLicense) {
-      // Auto-Detect ClearKey from URL
+      // Auto-Detect ClearKey from URL: URL?|drmScheme=clearkey&drmLicense=keyId:keyValue
       const parts = streamUrl.split('?|');
       if (parts.length > 1) {
         streamUrl = parts[0]; 
-        const paramsString = parts[1];
-        const streamParams = new URLSearchParams(paramsString.replace(/&/g, '&'));
+        const streamParams = new URLSearchParams(parts[1].replace(/&/g, '&'));
 
         const scheme = streamParams.get('drmScheme');
         const licenseData = streamParams.get('drmLicense');
@@ -153,13 +152,13 @@ document.addEventListener('DOMContentLoaded', async()=>{
       player.configure('drm', null);
   }
 
-  // --- ৩. প্রক্সি হ্যান্ডলার যুক্ত করা (Vercel) ---
+  // --- ৩. প্রক্সি হ্যান্ডলার যুক্ত করা (Vercel Node.js) ---
   player.getNetworkingEngine().registerRequestFilter(function(type, request) {
     if (type === shaka.net.NetworkingEngine.RequestType.MANIFEST || 
         type === shaka.net.NetworkingEngine.RequestType.SEGMENT || 
         type === shaka.net.NetworkingEngine.RequestType.LICENSE) {
         
-        // সমস্ত রিকোয়েস্ট প্রক্সি সার্ভারের মাধ্যমে যাবে
+        // সমস্ত রিকোয়েস্ট Vercel প্রক্সি সার্ভারের মাধ্যমে যাবে
         request.uris[0] = PROXY_BASE + encodeURIComponent(request.uris[0]);
     }
   });
